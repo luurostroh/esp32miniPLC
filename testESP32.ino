@@ -300,9 +300,9 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
     idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
     IO_controls[3].assoc_out = &Outputs[idx];
     IO_controls[3].time = sub.substring(sub.indexOf('|') + 1).toInt();
-    PushToEeprom();
+   // PushToEeprom();
     delay(10);
-    PullFromEeprom();
+   // PullFromEeprom();
   }
 
   else if (rec_data[0] == '#') 
@@ -481,7 +481,7 @@ void setup() {
   // Start server
   server.begin();
   
-  PullFromEeprom();
+ // PullFromEeprom();
 }
 
 void loop() 
