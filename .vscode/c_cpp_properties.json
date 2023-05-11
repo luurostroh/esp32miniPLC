@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "c:/Users/oem/AppData/Local/Arduino15/packages/esp32/tools/**",
+                "c:/Users/oem/AppData/Local/Arduino15/packages/esp32/hardware/ESP32/2.0.7/**",
+                "c:/Users/oem/Documents/Arduino/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+        }
+    ],
+    "version": 4
+}

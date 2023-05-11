@@ -1,0 +1,35 @@
+
+page to device
+
+ovladani vystupu:
+#C*<vystup/stav>   //1on,1off,2on,2off,3on,3off,4on,4off
+
+uloz data
+termostat:
+&#T*<t1>_<cas1>*<t2>_<cas2>*<t3>_<cas3>*<t4>_<cas4>
+
+spinacky:
+#S*<t1on>_<t1off>*<t2on>_<t2off>*<t3on>_<t3off>*<t4on>_<t4off>
+
+
+
+vystupy pro termostat , spinacky a ovladajici vstupy:
+#O*<termostatOut>*<spinackyOut>*<in1_Out>*<in2_Out>*<in3_Out>*<in4_Out>* 
+
+vstupy vystupy:
+#IO*<rezim1>_<assocOut1>_<time1(v minutach)>*<rezim2>_<assocOut2>_<time2(v minutach)>*<rezim3>_<assocOut3>_<time3(v minutach)>*<rezim4>_<assocOut1>_<time4(v minutach)>*
+
+device to page
+
+#I%<in1><in2><in3><in4>O%<out1><out2><out3><out4>t%<teplota> //vstupy vystupy teplota
+T%*<t1>_<cas1>*<t2>_<cas2>*<t3>_<cas3>*<t4>_<cas4> //termostat
+S*%<t1on>_<t1off>*<t2on>_<t2off>*<t3on>_<t3off>*<t4on>_<t4off>*E//spinacky
+
+set IP + password
+
+#ip.ip.ip.ip.#msk.msk.msk.msk.#br.br.br.br.#ssid#heslo#
+
+//  #10.1.1.55#4.4.10.45#255.0.0.0#MujNet#heloludek#
+//#192.168.137.150.#255.255.255.0.#192.168.137.1.#8.8.8.8.#MujNet#hesloludek#
+
+////W#10.1.1.1.#255.255.255.0.#10.1.1.1.#8.8.8.8.#hesloludek#MujNet#
