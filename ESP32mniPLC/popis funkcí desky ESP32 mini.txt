@@ -1,0 +1,17 @@
+popis funkcí desky ESP32 mini 
+
+VSTUPY:
+4x digitální vstup (izolované optočlenem)
+2x analogové vstup (odporový dělič)
+
+VÝSTUPY:
+2x relé 10A (NC,COM,NO)
+4x tranzistorový výstup (+12V, 200mA)
+
+KOMUNIKACE:
+1x I2C
+1x SPI
+1x 1WIRE
+1x USART 
+
+NAPÁJENÍ +12 V ss / 750 mA
