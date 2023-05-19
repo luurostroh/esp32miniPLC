@@ -471,6 +471,7 @@
     if(event.data[1]=='T'){
       var t_val = event.data.substring(2);
       document.getElementById("tempLabel1").innerHTML = t_val;
+      document.getElementById("tempLabel1_1").innerHTML = t_val;
     }
     if(event.data[1]=='#'){
       SortData(event.data);
@@ -710,6 +711,19 @@
     else Socket.send("#C*6of");
   }
 
+function setInputFunc(selectedInput,selectedTimer){
+ 
+  if(selectedInput.id == "rbtInputs3_1"
+  || selectedInput.id == "rbtInputs3_2"
+  || selectedInput.id == "rbtInputs3_3"
+  || selectedInput.id == "rbtInputs3"
+  ){
+
+    selectedTimer.disabled = true;
+   }
+
+  else selectedTimer.disabled = false; 
+}
 
 
 function SetActualTime()

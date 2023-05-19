@@ -12,6 +12,8 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include "web_page.h"
+#include <WiFiUdp.h>
+#include <NTPClient.h>
 #include "EEPROM.h"
 #define DBG
 
@@ -63,7 +65,7 @@ typedef struct
 
 /*variables*/
 Input Inputs[4];
-uint8_t inps[4] = { 33, 25, 26, 27 };
+uint8_t inps[4] = { 33, 4, 26, 27 };// 4 jen na test / vratit25;
 
 Output Outputs[6];
 uint8_t outs[6] = { 23, 19,18, 5, 17, 16 };
@@ -86,6 +88,11 @@ boolean outTermIsSetOn = false, outTermIsSetOff = false;
 
 uint64_t email_blocking_time[3] = { 0, 0, 0 };
 bool enable_send_email[4] = { true, true, true, true };
+bool client_connected=false;
+
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 7200);
 
 /*deklarace funkci*/
 
@@ -100,11 +107,11 @@ void ReadAdc();
 void StringDivide(String s[], String s1, char delim, uint8_t cnt);
 void PullFromEeprom();
 void PushToEeprom();
-
+void GetUdpTime ();
 
 
 // Replace with your network credentials
-const char *ssid = "MujNet";
+const char *ssid = "Net22";
 const char *password = "tajneheslo";
 String jmeno_site = "";
 String heslo = "";
@@ -118,259 +125,266 @@ AsyncWebSocket ws("/ws");
 
 void notifyClients(String s)
 {
-  ws.textAll(s);
+  if(client_connected)
+  {
+    ws.textAll(s);
+  }
+  
 }
-unsigned char ss = 1;
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
+
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
+ {
   AwsFrameInfo *info = (AwsFrameInfo *)arg;
-  String rec_data = "";
+  String payload = "";
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) 
   {
     data[len] = 0;
-    rec_data = (char *)data;
-    Serial.println(rec_data);
+    String rec_data = "";
+    payload = (char *)data;
 #ifdef DBG
-    Serial.println("ok"); 
+    Serial.println("ok"); /***/
 #endif
-    if (rec_data[0] == '&') 
+    if (payload[0] == '&') 
     {
 #ifdef DBG
-      Serial.print("message lenght: ");
-      Serial.println(len);
+      Serial.print("message lenght: "); /***/
+      Serial.println(len);           /***/
 #endif
-    }
-
-    uint8_t delimiters[19];
-    uint8_t index = 0;
-    for (int i = 0; i < len; i++)
-     {
-      if (rec_data[i] == '*') 
-      {
-        delimiters[index++] = i;
+     // dataLenght = len;
+      uint8_t delimiters[19];
+      uint8_t index = 0;
+      for (int i = 0; i < len; i++)
+       {
+        rec_data += (char)data[i];
+        if (payload[i] == '*')
+         {
+          delimiters[index++] = i;
 #ifdef DBG
-        Serial.print(i);
-        Serial.print(" ");
+          Serial.print(i);
+          Serial.print(" ");
 #endif
+        }
       }
+      if (payload[1] == 'S') 
+      {
+        DataToPage();
+        return;
+      }
+
+      if (payload[1] == 'T')
+      {
+        String tstamp = rec_data.substring(delimiters[0] + 1, delimiters[1]);
+        minutes = tstamp.toInt();
+        rtc_counter = minutes * 60;
+#ifdef DBG
+        char buf[15];
+        String s = itoa(rtc_counter, buf, 10);
+        Serial.println(tstamp);
+        Serial.println(buf);
+#endif
+        return;
+      }
+#ifdef DBG
+      Serial.print("data: "); /***/
+      Serial.println(rec_data);   /***/
+      Serial.println("sub:"); /***/
+#endif
+      String sub = "";
+      // tabulka termostatu
+      // termostat table teplota 1
+      sub = rec_data.substring(delimiters[0] + 1, delimiters[1]);
+#ifdef DBG
+      Serial.println(sub); /***/
+#endif
+      termostatTable[0].teplota = sub.substring(0, sub.indexOf('_')).toInt();
+      // termostat table cas 1
+      termostatTable[0].cas = sub.substring(sub.indexOf('_') + 1).toInt();
+      // termostat table teplota 2
+      sub = rec_data.substring(delimiters[1] + 1, delimiters[2]);
+#ifdef DBG
+      Serial.println(sub); /***/
+#endif
+      termostatTable[1].teplota = sub.substring(0, sub.indexOf('_')).toInt();
+      // termostat table cas 2
+      termostatTable[1].cas = sub.substring(sub.indexOf('_') + 1).toInt();
+      // termostat table teplota 3
+      sub = rec_data.substring(delimiters[2] + 1, delimiters[3]);
+#ifdef DBG
+      Serial.println(sub); /***/
+#endif
+      termostatTable[2].teplota = sub.substring(0, sub.indexOf('_')).toInt();
+      // termostat table cas 3
+      termostatTable[2].cas = sub.substring(sub.indexOf('_') + 1).toInt();
+      // termostat table teplota 4
+      sub = rec_data.substring(delimiters[3] + 1, delimiters[4]);
+#ifdef DBG
+      Serial.println(sub); /***/
+#endif
+      termostatTable[3].teplota = sub.substring(0, sub.indexOf('_')).toInt();
+      // termostat table cas 4
+      termostatTable[3].cas = sub.substring(sub.indexOf('_') + 1).toInt();
+#ifdef DBG
+      Serial.println(); /***/
+#endif
+      // tabulka spinacek
+      // spinacky table cas ON 1
+      sub = rec_data.substring(delimiters[5] + 1, delimiters[6]);
+#ifdef DBG
+      Serial.println(sub); /***/
+#endif
+      spinackyTable[0].casOn = sub.substring(0, sub.indexOf('_')).toInt();
+      // termostat table cas OFF 1
+      spinackyTable[0].casOff = sub.substring(sub.indexOf('_') + 1).toInt();
+      // termostat table cas ON 2
+      sub = rec_data.substring(delimiters[6] + 1, delimiters[7]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      spinackyTable[1].casOn = sub.substring(0, sub.indexOf('_')).toInt();
+      // termostat table cas OFF 2
+      spinackyTable[1].casOff = sub.substring(sub.indexOf('_') + 1).toInt();
+      // termostat table cas ON 3
+      sub = rec_data.substring(delimiters[7] + 1, delimiters[8]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      spinackyTable[2].casOn = sub.substring(0, sub.indexOf('_')).toInt();
+      // termostat table cas OFF 3
+      spinackyTable[2].casOff = sub.substring(sub.indexOf('_') + 1).toInt();
+      // termostat table cas ON 4
+      sub = rec_data.substring(delimiters[8] + 1, delimiters[9]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      spinackyTable[3].casOn = sub.substring(0, sub.indexOf('_')).toInt();
+      // termostat table cas OFF 4
+      spinackyTable[3].casOff = sub.substring(sub.indexOf('_') + 1).toInt();
+
+      // vystup pro termostat
+      sub = rec_data.substring(delimiters[10] + 1, delimiters[11]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      uint8_t idx = sub.toInt();
+      termostatOut.num = outs[idx];
+      termostatOut.id = idx + 1;
+      // vystup pro spinacky
+      sub = rec_data.substring(delimiters[11] + 1, delimiters[12]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      idx = sub.toInt();
+      spinackyOut.num = outs[idx];
+      spinackyOut.id = idx + 1;
+      // IO nastaveni 1
+      sub = rec_data.substring(delimiters[13] + 1, delimiters[14]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      IO_controls[0].mode = sub.substring(0, sub.indexOf('_')).toInt();
+      idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
+      IO_controls[0].assoc_out = &Outputs[idx];
+      IO_controls[0].time = sub.substring(sub.indexOf('|') + 1).toInt();
+      // IO nastaveni 2
+      sub = rec_data.substring(delimiters[14] + 1, delimiters[15]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      IO_controls[1].mode = sub.substring(0, sub.indexOf('_')).toInt();
+      idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
+      IO_controls[1].assoc_out = &Outputs[idx];
+      IO_controls[1].time = sub.substring(sub.indexOf('|') + 1).toInt();
+      // IO nastaveni 1
+      sub = rec_data.substring(delimiters[15] + 1, delimiters[16]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      IO_controls[2].mode = sub.substring(0, sub.indexOf('_')).toInt();
+      idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
+      IO_controls[2].assoc_out = &Outputs[idx];
+      IO_controls[2].time = sub.substring(sub.indexOf('|') + 1).toInt();
+      // IO nastaveni 1
+      sub = rec_data.substring(delimiters[16] + 1, delimiters[17]);
+#ifdef DBG
+      Serial.println(sub);
+#endif
+      IO_controls[3].mode = sub.substring(0, sub.indexOf('_')).toInt();
+      idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
+      IO_controls[3].assoc_out = &Outputs[idx];
+      IO_controls[3].time = sub.substring(sub.indexOf('|') + 1).toInt();
+      PushToEeprom();
+      PullFromEeprom();
     }
-    if (rec_data[1] == 'S') 
+
+    else if (payload[0] == '#') 
     {
-      DataToPage();
-      return;
-    }
+#ifdef DBG
+      Serial.print("IO ");
+      Serial.print(payload[3]);
+      Serial.print(payload[5]);
+#endif
 
-    if (rec_data[1] == 'T')
-     {
-      String tstamp = rec_data.substring(delimiters[0] + 1, delimiters[1]);
-      minutes = tstamp.toInt();
-      rtc_counter = minutes * 60;
-#ifdef DBG
-      char buf[15];
-      String s = itoa(rtc_counter, buf, 10);
-      Serial.println(tstamp);
-      Serial.println(buf);
-#endif
-    //  return;
-    }
-#ifdef DBG
-    Serial.print("data: ");
-    Serial.println(rec_data);
-    Serial.println("sub:");
-#endif
-    String sub = "";
-    // tabulka termostatu
-    // termostat table teplota 1
-    sub = rec_data.substring(delimiters[0] + 1, delimiters[1]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    termostatTable[0].teplota = sub.substring(0, sub.indexOf('_')).toInt();
-    // termostat table cas 1
-    termostatTable[0].cas = sub.substring(sub.indexOf('_') + 1).toInt();
-    // termostat table teplota 2
-    sub = rec_data.substring(delimiters[1] + 1, delimiters[2]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    termostatTable[1].teplota = sub.substring(0, sub.indexOf('_')).toInt();
-    // termostat table cas 2
-    termostatTable[1].cas = sub.substring(sub.indexOf('_') + 1).toInt();
-    // termostat table teplota 3
-    sub = rec_data.substring(delimiters[2] + 1, delimiters[3]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    termostatTable[2].teplota = sub.substring(0, sub.indexOf('_')).toInt();
-    // termostat table cas 3
-    termostatTable[2].cas = sub.substring(sub.indexOf('_') + 1).toInt();
-    // termostat table teplota 4
-    sub = rec_data.substring(delimiters[3] + 1, delimiters[4]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    termostatTable[3].teplota = sub.substring(0, sub.indexOf('_')).toInt();
-    // termostat table cas 4
-    termostatTable[3].cas = sub.substring(sub.indexOf('_') + 1).toInt();
-#ifdef DBG
-    Serial.println();
-#endif
-    // tabulka spinacek
-    // spinacky table cas ON 1
-    sub = rec_data.substring(delimiters[5] + 1, delimiters[6]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    spinackyTable[0].casOn = sub.substring(0, sub.indexOf('_')).toInt();
-    // termostat table cas OFF 1
-    spinackyTable[0].casOff = sub.substring(sub.indexOf('_') + 1).toInt();
-    // termostat table cas ON 2
-    sub = rec_data.substring(delimiters[6] + 1, delimiters[7]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    spinackyTable[1].casOn = sub.substring(0, sub.indexOf('_')).toInt();
-    // termostat table cas OFF 2
-    spinackyTable[1].casOff = sub.substring(sub.indexOf('_') + 1).toInt();
-    // termostat table cas ON 3
-    sub = rec_data.substring(delimiters[7] + 1, delimiters[8]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    spinackyTable[2].casOn = sub.substring(0, sub.indexOf('_')).toInt();
-    // termostat table cas OFF 3
-    spinackyTable[2].casOff = sub.substring(sub.indexOf('_') + 1).toInt();
-    // termostat table cas ON 4
-    sub = rec_data.substring(delimiters[8] + 1, delimiters[9]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    spinackyTable[3].casOn = sub.substring(0, sub.indexOf('_')).toInt();
-    // termostat table cas OFF 4
-    spinackyTable[3].casOff = sub.substring(sub.indexOf('_') + 1).toInt();
+      switch (payload[3]) 
+      {
+        case '1':
+          if (payload[5] == 'n')
+            ChangeOutput(&Outputs[0], HIGH);
+          else
+            ChangeOutput(&Outputs[0], LOW);
+          break;
 
-    // vystup pro termostat
-    sub = rec_data.substring(delimiters[10] + 1, delimiters[11]);
+        case '2':
+          if (payload[5] == 'n')
+            ChangeOutput(&Outputs[1], HIGH);
+          else
+            ChangeOutput(&Outputs[1], LOW);
+          break;
+
+        case '3':
+          if (payload[5] == 'n')
+            ChangeOutput(&Outputs[2], HIGH);
+          else
+            ChangeOutput(&Outputs[2], LOW);
+          break;
+
+        case '4':
+          if (payload[5] == 'n')
+            ChangeOutput(&Outputs[3], HIGH);
+          else
+            ChangeOutput(&Outputs[3], LOW);
+          break;
+
+        case '5':
+          if (payload[5] == 'n')
+            ChangeOutput(&Outputs[4], HIGH);
+          else
+            ChangeOutput(&Outputs[4], LOW);
+          break;
+
+        case '6':
+          if (payload[5] == 'n')
+            ChangeOutput(&Outputs[5], HIGH);
+          else
+            ChangeOutput(&Outputs[5], LOW);
+          break;          
+        default:
+          break;
+      }
+
 #ifdef DBG
-    Serial.println(sub);
+      Serial.print(Outputs[0].last_state);
+      Serial.print(Outputs[1].last_state);
+      Serial.print(Outputs[2].last_state);
+      Serial.println(Outputs[3].last_state);
 #endif
-    uint8_t idx = sub.toInt();
-    termostatOut.num = outs[idx];
-    termostatOut.id = idx + 1;
-    // vystup pro spinacky
-    sub = rec_data.substring(delimiters[11] + 1, delimiters[12]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    idx = sub.toInt();
-    spinackyOut.num = outs[idx];
-    spinackyOut.id = idx + 1;
-    // IO nastaveni 1
-    sub = rec_data.substring(delimiters[13] + 1, delimiters[14]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    IO_controls[0].mode = sub.substring(0, sub.indexOf('_')).toInt();
-    idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
-    IO_controls[0].assoc_out = &Outputs[idx];
-    IO_controls[0].time = sub.substring(sub.indexOf('|') + 1).toInt();
-    // IO nastaveni 2
-    sub = rec_data.substring(delimiters[14] + 1, delimiters[15]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    IO_controls[1].mode = sub.substring(0, sub.indexOf('_')).toInt();
-    idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
-    IO_controls[1].assoc_out = &Outputs[idx];
-    IO_controls[1].time = sub.substring(sub.indexOf('|') + 1).toInt();
-    // IO nastaveni 1
-    sub = rec_data.substring(delimiters[15] + 1, delimiters[16]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    IO_controls[2].mode = sub.substring(0, sub.indexOf('_')).toInt();
-    idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
-    IO_controls[2].assoc_out = &Outputs[idx];
-    IO_controls[2].time = sub.substring(sub.indexOf('|') + 1).toInt();
-    // IO nastaveni 1
-    sub = rec_data.substring(delimiters[16] + 1, delimiters[17]);
-#ifdef DBG
-    Serial.println(sub);
-#endif
-    IO_controls[3].mode = sub.substring(0, sub.indexOf('_')).toInt();
-    idx = sub.substring(sub.indexOf('_') + 1, sub.indexOf('|')).toInt();
-    IO_controls[3].assoc_out = &Outputs[idx];
-    IO_controls[3].time = sub.substring(sub.indexOf('|') + 1).toInt();
-   // PushToEeprom();
-    delay(10);
-   // PullFromEeprom();
+    }
+    
+
   }
 
-  else if (rec_data[0] == '#') 
-  {
-#ifdef DBG
-    Serial.print("IO ");
-    Serial.print(rec_data[3]);
-    Serial.print(rec_data[5]);
-#endif
+ }
 
-    switch (rec_data[3]) {
-      case '1':
-        if (rec_data[5] == 'n')
-          ChangeOutput(&Outputs[0], HIGH);
-        else
-          ChangeOutput(&Outputs[0], LOW);
-        break;
 
-      case '2':
-        if (rec_data[5] == 'n')
-          ChangeOutput(&Outputs[1], HIGH);
-        else
-          ChangeOutput(&Outputs[1], LOW);
-        break;
-
-      case '3':
-        if (rec_data[5] == 'n')
-          ChangeOutput(&Outputs[2], HIGH);
-        else
-          ChangeOutput(&Outputs[2], LOW);
-        break;
-
-      case '4':
-        if (rec_data[5] == 'n')
-          ChangeOutput(&Outputs[3], HIGH);
-        else
-          ChangeOutput(&Outputs[3], LOW);
-        break;
-
-      case '5':
-        if (rec_data[5] == 'n')
-          ChangeOutput(&Outputs[4], HIGH);
-        else
-          ChangeOutput(&Outputs[4], LOW);
-        break;
-
-      case '6':
-        if (rec_data[5] == 'n')
-          ChangeOutput(&Outputs[5], HIGH);
-        else
-          ChangeOutput(&Outputs[5], LOW);
-        break;
-
-      default:
-        break;
-    }
-
-#ifdef DBG
-    Serial.print(Outputs[0].last_state);
-    Serial.print(Outputs[1].last_state);
-    Serial.print(Outputs[2].last_state);
-    Serial.print(Outputs[3].last_state);
-    Serial.print(Outputs[4].last_state);
-    Serial.println(Outputs[5].last_state);
-#endif
-  }
-}
-//}
 
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
              void *arg, uint8_t *data, size_t len) 
@@ -378,9 +392,11 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   switch (type) {
     case WS_EVT_CONNECT:
       Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+      client_connected = true;
       break;
     case WS_EVT_DISCONNECT:
       Serial.printf("WebSocket client #%u disconnected\n", client->id());
+      client_connected = false;
       break;
     case WS_EVT_DATA:
       handleWebSocketMessage(arg, data, len);
@@ -481,7 +497,7 @@ void setup() {
   // Start server
   server.begin();
   
- // PullFromEeprom();
+  PullFromEeprom();
 }
 
 void loop() 
@@ -498,7 +514,7 @@ void loop()
     if (spinackyOut.num != 0)
       Spinacky(); //obsluha spinacich hodin
     counter = millis() + 1000;
-   // GetUdpTime(); //aktualizuj cas z NTP serveru
+    GetUdpTime(); //aktualizuj cas z NTP serveru
   }
   //jednou za 20 ms cti vstupy
   if (_millis > counter_input)
@@ -515,7 +531,7 @@ void SetIO()
 {
   pinMode(27, INPUT);
   pinMode(33, INPUT);
-  pinMode(25, INPUT);
+  pinMode(4, INPUT);//4 jen na test / vratit25;
   pinMode(26, INPUT);
   pinMode(5, OUTPUT);
   pinMode(16, OUTPUT);
@@ -527,7 +543,7 @@ void SetIO()
   Inputs[0].num = 33;
   Inputs[0].last_state = 0;
   Inputs[0].id = 1;
-  Inputs[1].num = 25;
+  Inputs[1].num = 4;//4 jen na test / vratit25;
   Inputs[1].last_state = 0;
   Inputs[1].id = 2;
   Inputs[2].num = 26;
@@ -558,9 +574,17 @@ void SetIO()
 
 
   IO_controls[0].assoc_out = &Outputs[0];
+  IO_controls[0].mode = 1;
+  IO_controls[0].time = 0;
   IO_controls[1].assoc_out = &Outputs[1];
+  IO_controls[1].mode = 1;
+  IO_controls[1].time = 0;
   IO_controls[2].assoc_out = &Outputs[2];
+  IO_controls[2].mode = 1;
+  IO_controls[2].time = 0;
   IO_controls[3].assoc_out = &Outputs[3];
+  IO_controls[3].mode = 1;
+  IO_controls[3].time = 0;
 }
 
 
@@ -614,25 +638,25 @@ void DataToPage() {
   //vstup 1
   send_data += String(IO_controls[0].mode) + "_";
   j = -1;
-  for (size_t i = 0; i < 4; i++){if (IO_controls[0].assoc_out == Outputs + i)j = i;}   
+  for (size_t i = 0; i < 6; i++){if (IO_controls[0].assoc_out == Outputs + i)j = i;}   
   send_data += String(j) + "|";
   send_data += String(IO_controls[0].time) + "*";
   //vstup 2
   send_data += String(IO_controls[1].mode) + "_";
   j = -1;
-  for (size_t i = 0; i < 4; i++){if (IO_controls[1].assoc_out == Outputs + i) j = i;} 
+  for (size_t i = 0; i < 6; i++){if (IO_controls[1].assoc_out == Outputs + i) j = i;} 
   send_data += String(j) + "|";
   send_data += String(IO_controls[1].time) + "*";
   //vstup 3
   send_data += String(IO_controls[2].mode) + "_";
   j = -1;
-  for (size_t i = 0; i < 4; i++){if (IO_controls[2].assoc_out == Outputs + i)j = i;}   
+  for (size_t i = 0; i < 6; i++){if (IO_controls[2].assoc_out == Outputs + i)j = i;}   
   send_data += String(j) + "|";
   send_data += String(IO_controls[2].time) + "*";
   //vstup 4
   send_data += String(IO_controls[3].mode) + "_";
   j = -1;
-  for (size_t i = 0; i < 4; i++){if (IO_controls[3].assoc_out == Outputs + i)j = i;}   
+  for (size_t i = 0; i < 6; i++){if (IO_controls[3].assoc_out == Outputs + i)j = i;}   
   send_data += String(j) + "|";
   send_data += String(IO_controls[3].time) + "*";
 
@@ -644,7 +668,7 @@ void DataToPage() {
   send_data.toCharArray(msg, dl);
   Serial.println(msg);
   delay(500);
-  notifyClients(msg);
+  notifyClients(String(msg));
   delay(500);
 }
 
@@ -669,7 +693,7 @@ void TestVstupu() {
         Serial.println(msg);
 #endif
         Inputs[i].last_state = 1;
-        notifyClients(msg);
+        notifyClients(String(msg));
         if (IO_controls[i].mode == 0)
           ChangeOutput(IO_controls[i].assoc_out, HIGH);
         else if (IO_controls[i].mode == 1) {
@@ -708,7 +732,7 @@ void TestVstupu() {
         Serial.println(msg);
 #endif
         Inputs[i].last_state = 0;
-        notifyClients(msg);
+        notifyClients(String(msg));
         if (IO_controls[i].mode == 0)
           ChangeOutput(IO_controls[i].assoc_out, LOW);
       }
@@ -728,10 +752,10 @@ void ReadTemp() {
   temperature = (uint16_t)(t * 10);
   if (old_temperature != temperature) {
     old_temperature = temperature;
-    // sprintf(msg, "#T%02u,%1u", temperature / 10, temperature % 10);
-    // Serial.print("Temp:  ");
-    // Serial.println(msg);
-    notifyClients(msg);
+    sprintf(msg, "#T%02u,%1u", temperature / 10, temperature % 10);
+    Serial.print("Temp:  ");
+    Serial.println(msg);
+    notifyClients(String(msg));
 #ifdef DBG
     Serial.print(t);
 #endif
@@ -827,7 +851,7 @@ void ChangeOutput(Output *_out, uint8_t val)
 #ifdef DBG
   Serial.println(_out->last_state);
 #endif
-  ws.textAll(msg);
+  notifyClients(String(msg));
 }
 
 void PushToEeprom()
@@ -963,3 +987,18 @@ void PullFromEeprom()
   #endif
 }
 
+
+void GetUdpTime ()
+{
+  timeClient.update();
+  int hh = timeClient.getHours();
+  int mm = timeClient.getMinutes();
+  int ss = timeClient.getSeconds();
+  rtc_counter = ( hh* 3600) +( mm * 60) + ss;
+  minutes = (hh * 60) + mm;             
+#ifdef DBG
+  char buff[28];
+  sprintf(buff, "%02u:%02u:%02u", hh, mm, ss);
+  Serial.println(buff);
+#endif
+}

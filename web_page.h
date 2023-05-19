@@ -20,7 +20,7 @@ x
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="content-type" content="text/html;charset=utf-8" />
   <meta name="generator" content="Geany 1.30.1" />
-  <link rel="icon" href="data:,">
+  <link rel="icon" href="data:;base64,=">
   <!--link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
     integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous"-->
 </head>
@@ -416,7 +416,7 @@ x
 </style>
 
 <script>
-  var gateway = `ws://${window.location.hostname}/ws`;
+  var gateway = 'ws://' + window.location.hostname + ':81/';
   var Socket;
   window.addEventListener('load', onLoad);
 //  function initWebSocket() {
@@ -430,7 +430,8 @@ x
   var termostatLabel, spinackyLabel, setIOlabel;
   function init() {
     console.log('Trying to open a WebSocket connection...');
-    Socket = new WebSocket(gateway);
+    Socket = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/ws");
+    //Socket = new WebSocket(gateway);
     Socket.onmessage =  function onOpen(event) {console.log('Connection opened');}
     Socket.onclose =  function onClose(event) {console.log('Connection closed');}
 
@@ -482,6 +483,7 @@ x
     if(event.data[1]=='T'){
       var t_val = event.data.substring(2);
       document.getElementById("tempLabel1").innerHTML = t_val;
+       document.getElementById("tempLabel1_1").innerHTML = t_val;
     }
     if(event.data[1]=='#'){
       SortData(event.data);
@@ -721,7 +723,18 @@ x
     else Socket.send("#C*6of");
   }
 
+  function setInputFunc(selectedInput){
+  if(selectedInput.id == "rbtInputs3_1"
+  || selectedInput.id == "rbtInputs3_2"
+  || selectedInput.id == "rbtInputs3_3"
+  || selectedInput.id == "rbtInputs3"
+  ){
 
+   timer1.disabled = true;
+   }
+
+  else timer1.disabled = false; 
+  }
 
 function SetActualTime()
 {
@@ -1276,6 +1289,11 @@ function SetActualTime()
             </div>
           </fieldset>
         </form>
+          <div style="margin-top:30px;">
+            <span  class="tempLabel" id="tempLabel0_1" style="width:50px;height:30px;margin-top:20px; ">Teplota </span>
+            <span class="tempLabel" id="tempLabel1_1"  style="width:50px;height:30px;margin-top:20px;">23</span>
+            <span class="tempLabel" id=" tempLabel2_1" style="width:50px;height:30px;margin-top:20px;"> °C</span>
+          </div>
         <div>
           <button type="submit" onclick="SaveData()">ULOŽIT</button>
           <button type="submit" onclick="getData()">NAČÍST</button>
@@ -1491,14 +1509,14 @@ function SetActualTime()
             <fieldset style="border:1;">
               <legend>Funkce vstupu IN4</legend>
               <div style="margin:auto">
-                <input type="radio" id="rbtInputs4_1" name="prepInMode4" onclick="setInputFunc(this)" value="all">
-                <label for="rbtInputs4_1">trvale</label>
-                <input type="radio" id="rbtInputs4_2" name="prepInMode4" onclick="setInputFunc(this)" value="false">
-                <label for="rbtInputs4_2">puls</label>
+                <input type="radio" id="rbtInputs1_3" name="prepInMode4" onclick="setInputFunc(this)" value="all">
+                <label for="rbtInputs1_3">trvale</label>
+                <input type="radio" id="rbtInputs2_3" name="prepInMode4" onclick="setInputFunc(this)" value="false">
+                <label for="rbtInputs2_3">puls</label>
+                <input type="radio" id="rbtInputs3_3" name="prepInMode4" onclick="setInputFunc(this)" value="true">
+                <label for="rbtInputs3_3">časovač</label>
                 <input type="radio" id="rbtInputs4_3" name="prepInMode4" onclick="setInputFunc(this)" value="true">
-                <label for="rbtInputs4_3">časovač</label>
-                <input type="radio" id="rbtInputs4_4" name="prepInMode4" onclick="setInputFunc(this)" value="true">
-                <label for="rbtInputs4_4">email</label
+                <label for="rbtInputs4_3">email</label
               </div>
             </fieldset>
           </form>
